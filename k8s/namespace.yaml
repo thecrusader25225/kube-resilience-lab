@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+
+metadata:
+  name: krlab
+
+  labels:
+    app.kubernetes.io/part-of: kube-resilience-lab

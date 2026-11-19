@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: resilience-demo
+  namespace: krlab
+
+  labels:
+    app.kubernetes.io/name: resilience-demo
+    app.kubernetes.io/part-of: kube-resilience-lab
+
+spec:
+  replicas: 3
+
+  revisionHistoryLimit: 3
+
+  selector:
+    matchLabels:
+      app: resilience-demo
+
+  strategy:
+    type: RollingUpdate
+
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  template:
+    metadata:
+      labels:
+        app: resilience-demo
+        app.kubernetes.io/name: resilience-demo
+
+    spec:
+      terminationGracePeriodSeconds: 10
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+
+        seccompProfile:
+          type: RuntimeDefault
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+
+          topologyKey: kubernetes.io/hostname
+
+          whenUnsatisfiable: DoNotSchedule
+
+          labelSelector:
+            matchLabels:
+              app: resilience-demo
+
+      containers:
+        - name: api
+
+          image: kube-resilience-demo:v0.1.0
+
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+            - name: POD_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+
+            limits:
+              cpu: 250m
+              memory: 128Mi
+
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+
+            periodSeconds: 2
+            failureThreshold: 15
+
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+
+            capabilities:
+              drop:
+                - ALL
